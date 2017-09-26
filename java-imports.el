@@ -90,14 +90,18 @@ classes."
   :group 'java-imports
   :type '(alist :key-type string :value-type string))
 
+(defun java-imports-kotlin? ()
+  "Determines if current file is a kotlin file based on file name."
+  (string-suffix-p ".kt" buffer-file-name))
+
 (defun java-imports-go-to-imports-start ()
   "Go to the point where java import statements start or should
 start (if there are none)."
   (goto-char (point-min))
   ;; package declaration is always in the beginning of a file, so no need to
   ;; reset the point after the first search
-  (let ((package-decl-point (re-search-forward "package .*;" nil t))
-        (import-decl-point (re-search-forward "import .*;" nil t)))
+  (let ((package-decl-point (re-search-forward "^package " nil t))
+        (import-decl-point (re-search-forward "^import " nil t)))
     ;; 1. If there are imports in the file - go to the first one
     ;;
     ;; 2. No imports, and the package declaration is available - go to the end
@@ -117,7 +121,7 @@ start (if there are none)."
 (defun java-imports-get-import (line)
   "Return the fully-qualified package for the given import line."
   (when line
-    (cadr (s-match "import \\\(.*\\\);"
+    (cadr (s-match "import \\\(.*\\\);*"
                    (string-trim line)))))
 
 (defun java-imports-get-package-and-class (import)
@@ -135,7 +139,7 @@ Example 'java.util.Map' returns '(\"java.util\" \"Map\")."
   "Checks if the import already exists"
   (save-excursion
     (goto-char (point-min))
-    (re-search-forward (concat "^[ \t]*import[ \t]+" full-name "[ \t]*;") nil t)))
+    (re-search-forward (concat "^[ \t]*import[ \t]+" full-name "[ \t]*;*") nil t)))
 
 (defun java-imports-find-place-sorted-block (full-name class-name package)
   "Finds the insertion place within a sorted import block.
@@ -201,7 +205,7 @@ Java-mode buffer"
   (interactive)
   (cl-mapcar
    #'java-imports-get-import
-   (cl-remove-if-not (lambda (str) (s-matches? "import[ \t]+.+[ \t]*;" str))
+   (cl-remove-if-not (lambda (str) (s-matches? "import[ \t]+.+[ \t]*;*" str))
                      (s-lines (buffer-string)))))
 
 ;;;###autoload
@@ -224,7 +228,9 @@ Java-mode buffer"
 
       ;; The insertion itself. Note that the only thing left to do here is to
       ;; insert the import.
-      (insert "import " (concat package "." class-name) ";")
+      (if (java-imports-kotlin?)
+	  (insert "import " (concat package "." class-name))
+	(insert "import " (concat package "." class-name) ";"))
       full-name)))
 
 ;;;###autoload
